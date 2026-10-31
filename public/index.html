@@ -34,10 +34,14 @@ textarea{flex:1;resize:none;background:none;border:0;color:var(--tx);font:inheri
 #card h3{margin:0}.row{display:flex;gap:8px;align-items:center}
 @media (max-width:700px){body{flex-direction:column}#rail{width:100%;flex-direction:row;padding:6px 8px;overflow-x:auto;overflow-y:hidden}.sv{width:40px;height:40px;font-size:18px}.sp{display:none}.hr{width:2px;height:28px}
 #side{width:100%;flex-direction:row;align-items:center;overflow-x:auto}#side h2{display:none}#chs{display:flex;overflow-x:auto;padding:4px;flex:1}.ch{width:auto;white-space:nowrap}.add{flex:none;width:210px}}
+.mr{display:flex;align-items:center;gap:8px;width:100%;background:none;border:0;color:var(--tx);padding:6px 8px;border-radius:6px;cursor:pointer;font:inherit;text-align:left}.mr:hover,.mr.on{background:var(--hv)}
+.mr .t{min-width:0;flex:1}.mr .s{font-size:12px;color:var(--mu);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.pa{position:relative;flex:none}.dot{position:absolute;right:-2px;bottom:-2px;width:12px;height:12px;border-radius:50%;border:2px solid var(--b2);background:#80848e}
+.sec{font-size:11px;color:var(--mu);padding:10px 8px 4px;text-transform:uppercase}select{background:var(--b3);color:var(--tx);border:0;border-radius:6px;padding:9px}
 </style></head><body>
 <div id="rail"></div>
 <div id="side"><h2 id="sn"></h2><div id="chs"></div><div class="add" id="addch" hidden><input type="text" id="chn" placeholder="yeni-kanal" maxlength="24"><button class="sm" id="chb">+</button></div></div>
-<div id="main"><div id="top"><span id="tt"></span><span id="cb" hidden><button class="ic" id="c1" title="Sesli ara">📞</button><button class="ic" id="c2" title="Görüntülü ara">📹</button></span><label id="vl" hidden style="font-weight:400;font-size:13px"><input type="checkbox" id="spk" checked> 🔊 sesli</label></div>
+<div id="main"><div id="ann" hidden style="background:var(--ac);color:#fff;padding:8px 16px;font-size:14px"></div><div id="top"><span id="tt"></span><span id="cb" hidden><button class="ic" id="c1" title="Sesli ara">📞</button><button class="ic" id="c2" title="Görüntülü ara">📹</button></span><label id="vl" hidden style="font-weight:400;font-size:13px"><input type="checkbox" id="spk" checked> 🔊 sesli</label></div>
 <div id="log"><div class="empty">Yükleniyor…</div></div><div id="st"></div>
 <div id="bar" hidden><div class="box"><button class="ic" id="emo">😀</button><button class="ic" id="att">🖼️</button><input type="file" id="file" accept="image/*" hidden>
 <textarea id="in" rows="1" placeholder="Mesaj yaz…"></textarea><button class="ic" id="dict" hidden>🗣️</button><button class="ic" id="rec">🎙️</button></div><button class="sm" id="send" style="height:46px">Gönder</button></div></div>
@@ -81,25 +85,28 @@ async function boot(){
 }
 function authUI(){lock=true;modal(c=>{
   c.append(el('h3','Sohbet’e hoş geldin'));
-  const u=inp('text','Kullanıcı adı (a-z, 0-9, _)'),p=inp('password','Şifre (en az 8 karakter)'),er=el('div');er.style.cssText='color:#ed4245;font-size:13px';
+  const u=inp('text','Kullanıcı adı (a-z, 0-9, _)'),p=inp('password','Şifre (en az 8 karakter)'),iv=inp('text','Davet kodu (varsa)'),er=el('div');er.style.cssText='color:#ed4245;font-size:13px';
   const lab=el('label','Beni hatırla (bu cihazda tekrar sorma)'),cb=el('input');cb.type='checkbox';lab.prepend(cb);
   const run=async reg=>{
     const n=u.value.trim().toLowerCase();if(!/^[a-z0-9_]{3,20}$/.test(n)){er.textContent='Kullanıcı adı 3-20 karakter: a-z, 0-9, _';return}
     if(p.value.length<8){er.textContent='Şifre en az 8 karakter';return}
     er.textContent='Bekle…';sb=mk(cb.checked?localStorage:sessionStorage);try{localStorage.setItem('rm',cb.checked?'1':'0')}catch(e){}
     const email=n+'@sohbet-app.com';
-    const r=reg?await sb.auth.signUp({email,password:p.value,options:{data:{username:n}}}):await sb.auth.signInWithPassword({email,password:p.value});
+    const r=reg?await sb.auth.signUp({email,password:p.value,options:{data:{username:n,invite:iv.value.trim()}}}):await sb.auth.signInWithPassword({email,password:p.value});
     if(r.error){er.textContent=reg?'Kayıt olmadı (kullanıcı adı alınmış olabilir): '+r.error.message:'Kullanıcı adı ya da şifre yanlış';return}
     if(!r.data.session){er.textContent='Kayıt oldu ama oturum açılmadı. Supabase’de “Confirm email” kapalı olmalı.';return}
     close();start(r.data.session)};
   p.onkeydown=e=>{if(e.key==='Enter')run(false)};
-  c.append(u,p,lab,er,el('button','Giriş yap','sm',()=>run(false)),el('button','Kayıt ol','sm',()=>run(true)))})}
+  c.append(u,p,iv,lab,er,el('button','Giriş yap','sm',()=>run(false)),el('button','Kayıt ol','sm',()=>run(true)))})}
 async function start(s){
   sess=s;me=s.user;await Promise.all([loadProfiles(),loadFriends(),loadServers()]);
   sb.auth.onAuthStateChange((_e,x)=>{if(x)sess=x});
-  sb.channel('meta').on('postgres_changes',{event:'*',schema:'public',table:'servers'},loadServers).on('postgres_changes',{event:'*',schema:'public',table:'channels'},()=>{if(mode==='server')loadChans()}).subscribe();
+  sb.channel('meta').on('postgres_changes',{event:'*',schema:'public',table:'servers'},loadServers).on('postgres_changes',{event:'*',schema:'public',table:'channels'},()=>{if(mode==='server')loadChans()}).on('postgres_changes',{event:'*',schema:'public',table:'config'},loadAnn).subscribe();
   if(PR[me.id]&&PR[me.id].banned){lock=true;modal(c=>c.append(el('h3','🚫 Engellendin')))}
   sb.channel('inbox:'+me.id).on('broadcast',{event:'sig'},({payload})=>onSig(payload)).subscribe();
+  pch=sb.channel('lobby',{config:{presence:{key:me.id}}});
+  pch.on('presence',{event:'sync'},async()=>{const x=pch.presenceState();pres={};for(const k in x)pres[k]=x[k][x[k].length-1];if(Object.keys(pres).some(k=>!PR[k]))await loadProfiles();if(mode==='dm'||mode==='global')drawSide()}).subscribe(z=>{if(z==='SUBSCRIBED')pch.track({st:myst,act:myact})});
+  loadAnn();
   setMode('global');
 }
 async function loadProfiles(){const {data}=await sb.from('profiles').select('id,username,bio,avatar,is_admin,banned');PR={};(data||[]).forEach(p=>PR[p.id]=p)}
@@ -116,9 +123,11 @@ function drawRail(){const r=$('rail');r.innerHTML='';
 function setMode(m){mode=m;drawRail();drawSide();
   if(m==='global')openRoom('global','🌐 Global sohbet');else if(m==='dm')openRoom(null,'🤖 Claude (yapay zekâ)',{ai:true});else openServer()}
 function drawSide(){const w=$('chs');w.innerHTML='';$('addch').hidden=true;
-  if(mode==='global'){$('sn').textContent='Global';const d=el('div','Herkesin yazabildiği genel sohbet.');d.style.cssText='color:var(--mu);padding:8px;font-size:13px';w.append(d)}
+  if(mode==='global'){$('sn').textContent='Global · Üyeler';const ids=Object.keys(PR).sort((a,b)=>(pres[b]?1:0)-(pres[a]?1:0)||uname(a).localeCompare(uname(b))),on=ids.filter(i=>pres[i]),off=ids.filter(i=>!pres[i]);
+    const dm=i=>friends.includes(i)?()=>{mode='dm';drawRail();openRoom('dm:'+[me.id,i].sort().join('_'),'🔒 '+uname(i),{to:i});drawSide()}:null;
+    w.append(el('div','Çevrimiçi — '+on.length,'sec'));on.forEach(i=>w.append(memRow(i,dm(i))));w.append(el('div','Çevrimdışı — '+off.length,'sec'));off.forEach(i=>w.append(memRow(i,dm(i))))}
   if(mode==='dm'){$('sn').textContent='Özel mesajlar';w.append(el('button','🤖 Claude (AI)','ch'+(cur&&cur.ai?' on':''),()=>{openRoom(null,'🤖 Claude (yapay zekâ)',{ai:true});drawSide()}),el('button','➕ Arkadaş ekle','ch',addFriend));
-    friends.forEach(i=>w.append(el('button','🔒 '+uname(i),'ch'+(cur&&cur.to===i?' on':''),()=>{openRoom('dm:'+[me.id,i].sort().join('_'),'🔒 '+uname(i),{to:i});drawSide()})))}}
+    friends.forEach(i=>w.append(memRow(i,()=>{openRoom('dm:'+[me.id,i].sort().join('_'),'🔒 '+uname(i),{to:i});drawSide()},cur&&cur.to===i)))}}
 function newServer(){mode='server';drawRail();$('sn').textContent='Yeni sunucu';$('addch').hidden=true;const w=$('chs');w.innerHTML='';
   const n=inp('text','Sunucu adı'),e=inp('text','Emoji (isteğe bağlı)');n.maxLength=30;w.append(n,e,el('button','Oluştur','sm',async()=>{
     if(!n.value.trim())return;const {data,error}=await sb.from('servers').insert({name:n.value.trim(),emoji:e.value.trim(),owner:me.id}).select().single();
@@ -203,8 +212,10 @@ async function profile(){const {data:cd}=await sb.from('friend_codes').select('c
     const f=inp('file','');f.accept='image/*';f.onchange=async()=>{const bm=await createImageBitmap(f.files[0]),cv=document.createElement('canvas');cv.width=cv.height=96;const s=Math.min(bm.width,bm.height);
       cv.getContext('2d').drawImage(bm,(bm.width-s)/2,(bm.height-s)/2,s,s,0,0,96,96);av=cv.toDataURL('image/jpeg',.7);show()};
     const bio=el('textarea');bio.maxLength=160;bio.placeholder='Biyografi';bio.value=p.bio||'';bio.style.cssText='background:var(--b3);border-radius:6px;padding:8px;min-height:70px';
-    c.append(el('div','Kullanıcı adı: '+(p.username||'')),pv,f,bio,el('div','Arkadaş kodun: '+(cd?cd.code:'?')),
-      el('button','Kaydet','sm',async()=>{const {error}=await sb.from('profiles').update({bio:bio.value.trim(),avatar:av}).eq('id',me.id);if(error){st('Kaydedilemedi');return}await loadProfiles();close();st('Profil güncellendi')}),
+    const stSel=el('select');[['online','🟢 Çevrimiçi'],['idle','🟡 Boşta'],['dnd','🔴 Rahatsız etme']].forEach(([v,t])=>{const o=el('option',t);o.value=v;stSel.append(o)});stSel.value=myst;
+    const actIn=inp('text','Şu an ne oynuyorsun? (örn. Minecraft)');actIn.maxLength=40;actIn.value=myact;
+    c.append(el('div','Kullanıcı adı: '+(p.username||'')),pv,f,bio,stSel,actIn,el('div','Arkadaş kodun: '+(cd?cd.code:'?')),
+      el('button','Kaydet','sm',async()=>{const {error}=await sb.from('profiles').update({bio:bio.value.trim(),avatar:av}).eq('id',me.id);if(error){st('Kaydedilemedi');return}myst=stSel.value;myact=actIn.value.trim().slice(0,40);try{localStorage.setItem('pst',myst);localStorage.setItem('pact',myact)}catch(e){}pch&&pch.track({st:myst,act:myact});await loadProfiles();close();st('Profil güncellendi')}),
       el('button','Çıkış yap','sm dg',async()=>{await sb.auth.signOut();try{localStorage.removeItem('rm')}catch(e){}location.reload()}))})}
 /* sesli / görüntülü arama (WebRTC, sinyal: Supabase Realtime) */
 /* Farklı ağlardaki kişiler için TURN ekle: {urls:'turn:SUNUCU:443',username:'KULLANICI',credential:'SIFRE'} */
@@ -246,6 +257,34 @@ $('k3').onclick=async()=>{if(!pc)return;if(sharing)return stopShare();
   try{const s=await navigator.mediaDevices.getDisplayMedia({video:true}),t=s.getVideoTracks()[0];sharing=true;$('k3').textContent='⏹ Paylaşımı durdur';t.onended=stopShare;await setV(t)}catch(e){st('Ekran paylaşımı başlatılamadı')}};
 async function stopShare(){if(!sharing)return;sharing=false;$('k3').textContent='🖥️ Ekran paylaş';try{lV&&lV.stop()}catch(e){}
   await setV(lCam&&lCam.readyState==='live'?lCam:(lDum&&lDum.readyState==='live'?lDum:(lDum=dummy())))}
+/* durum, görsel ve admin */
+const STC={online:'#23a55a',idle:'#f0b232',dnd:'#f23f43'},STN={online:'Çevrimiçi',idle:'Boşta',dnd:'Rahatsız etme'};
+let pch=null,pres={},myst='online',myact='',aOK=false,aTries=0,aUntil=0;
+try{myst=localStorage.getItem('pst')||'online';myact=localStorage.getItem('pact')||''}catch(e){}
+function avEl(id,sz){const n=uname(id),w=el('div',null,'pa'),a=el('div',n[0].toUpperCase(),'av');a.style.cssText='background:'+col(id)+';width:'+sz+'px;height:'+sz+'px;font-size:'+Math.round(sz*.4)+'px';
+  const pa=PR[id];if(pa&&String(pa.avatar).startsWith('data:image/')){a.textContent='';const im=el('img');im.src=pa.avatar;a.append(im)}
+  const d=el('span',null,'dot'),p=pres[id];d.style.background=p?(STC[p.st]||STC.online):'#80848e';w.append(a,d);return w}
+function memRow(id,f,on){const p=pres[id],r=el('button',null,'mr'+(on?' on':''),f||null),t=el('div',null,'t');
+  t.append(el('div',uname(id)),el('div',p?(p.act?'🎮 '+p.act:(STN[p.st]||'Çevrimiçi')):'Çevrimdışı',null));t.lastChild.className='s';r.append(avEl(id,32),t);return r}
+async function loadAnn(){const {data}=await sb.from('config').select('value').eq('key','announce').maybeSingle();const t=data&&data.value;$('ann').hidden=!t;$('ann').textContent=t||''}
+const b64=b=>{let s='';const u=new Uint8Array(b);for(let i=0;i<u.length;i+=8192)s+=String.fromCharCode.apply(null,u.subarray(i,i+8192));return btoa(s)};
+async function pbk(pw,salt){const k=await crypto.subtle.importKey('raw',new TextEncoder().encode(pw),'PBKDF2',false,['deriveBits']);return b64(await crypto.subtle.deriveBits({name:'PBKDF2',salt:Uint8Array.from(atob(salt),c=>c.charCodeAt(0)),iterations:200000,hash:'SHA-256'},k,256))}
+const ASALT='3O7qed4WnPiKpsu2suWZYA==',AHASH='4BLDLJzgSp29Y85OWrDqcZ5v7dmuJJnJS943gtJ+BnI=';
+document.addEventListener('keydown',e=>{if(e.key==='F10'){e.preventDefault();openAdmin()}});
+function openAdmin(){if(!me||!PR[me.id]||!PR[me.id].is_admin)return;if(aOK)return adminPanel();
+  modal(c=>{c.append(el('h3','🛡️ Admin paneli'),el('div','Şifreyi gir.'));const p=inp('password','Şifre'),er=el('div');er.style.color='#ed4245';
+    const go=async()=>{if(Date.now()<aUntil){er.textContent='Çok fazla deneme, bekle';return}
+      if(await pbk(p.value.trim().toLowerCase().replace(/ö/g,'o'),ASALT)===AHASH){aOK=true;adminPanel()}else{p.value='';if(++aTries>=3){aUntil=Date.now()+60000;aTries=0}er.textContent='Yanlış şifre'}};
+    p.onkeydown=e=>{if(e.key==='Enter')go()};c.append(p,er,el('button','Giriş','sm',go));setTimeout(()=>p.focus(),50)})}
+function adminPanel(){modal(c=>{
+  const ids=Object.keys(PR);c.append(el('h3','🛡️ Admin paneli'),el('div','Üye: '+ids.length+' · Çevrimiçi: '+Object.keys(pres).length+' · Sunucu: '+servers.length));
+  const an=inp('text','Herkese duyuru (boş = kaldır)');c.append(el('h3','Duyuru'),an,el('button','Yayınla','sm',async()=>{const {error}=await sb.rpc('admin_announce',{t:an.value.trim()});st(error?'Yetki yok':'Duyuru güncellendi')}));
+  c.append(el('button','Global sohbeti temizle','sm dg',async()=>{if(!confirm('Global sohbetteki tüm mesajlar silinsin mi?'))return;const {error}=await sb.rpc('admin_clear_global');st(error?'Yetki yok':'Temizlendi')}));
+  c.append(el('h3','Sunucular'));servers.forEach(v=>{const r=el('div',null,'row');r.append(el('span',(v.emoji||'')+' '+v.name),el('button','Sil','sm dg',async()=>{const {error}=await sb.from('servers').delete().eq('id',v.id);if(!error)r.remove();else st('Silinemedi')}));r.firstChild.style.flex='1';c.append(r)});
+  c.append(el('h3','Kullanıcılar'));ids.forEach(i=>{const p=PR[i],on=pres[i],r=el('div',null,'row'),t=el('div',null,'t');t.style.flex='1';
+    t.append(el('div',p.username+(p.is_admin?' 🛡️':'')+(p.banned?' 🚫':'')),el('div',on?(on.act?'🎮 '+on.act:STN[on.st]):'Çevrimdışı'));t.lastChild.style.cssText='font-size:12px;color:var(--mu)';
+    r.append(avEl(i,32),t);if(!p.is_admin)r.append(el('button',p.banned?'Yasağı kaldır':'Yasakla','sm'+(p.banned?'':' dg'),async()=>{const {error}=await sb.rpc('admin_ban',{u:i,b:!p.banned});if(error){st('Yapılamadı');return}await loadProfiles();adminPanel()}));c.append(r)});
+  c.append(el('button','Kilidi kapat','sm',()=>{aOK=false;close()}))})}
 if(window.speechSynthesis)speechSynthesis.getVoices();
 drawRail();boot();
 </script></body></html>
