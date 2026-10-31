@@ -44,3 +44,4 @@ begin if not is_admin() then raise exception 'yetki yok'; end if; update profile
 revoke execute on function srv_owner(uuid), can_post(text), admin_pro(uuid,boolean) from public, anon;
 grant execute on function srv_owner(uuid), can_post(text), admin_pro(uuid,boolean) to authenticated;
 alter publication supabase_realtime add table reactions, threads;
+notify pgrst, 'reload schema';

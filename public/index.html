@@ -113,7 +113,7 @@ async function start(s){
   loadAnn();
   setMode('global');
 }
-async function loadProfiles(){const {data}=await sb.from('profiles').select('id,username,bio,avatar,is_admin,banned,pro,banner');PR={};(data||[]).forEach(p=>PR[p.id]=p)}
+async function loadProfiles(){let r=await sb.from('profiles').select('id,username,bio,avatar,is_admin,banned,pro,banner');if(r.error)r=await sb.from('profiles').select('id,username,bio,avatar,is_admin,banned');PR={};(r.data||[]).forEach(p=>PR[p.id]=p)}
 async function loadFriends(){const {data}=await sb.from('friendships').select('friend_id');friends=(data||[]).map(x=>x.friend_id);if(mode==='dm')drawSide()}
 async function loadServers(){const {data}=await sb.from('servers').select('*').order('created');servers=data||[];drawRail();if(mode==='server'&&!servers.find(x=>x.id===S)){S=servers[0]&&servers[0].id;openServer()}}
 async function loadChans(){const {data}=await sb.from('channels').select('*').eq('server_id',S).order('created');chans=data||[];if(!C||!chans.find(x=>x.id===C)){C=chans[0]&&chans[0].id;chanOpen()}drawChans()}
@@ -142,7 +142,7 @@ async function openServer(){const sv=servers.find(x=>x.id===S)||servers[0];
 function drawChans(){const w=$('chs');w.innerHTML='';chans.forEach(c=>w.append(el('button',(c.type==='announce'?'📢 ':c.type==='forum'?'🗂️ ':'# ')+c.name,'ch'+(c.id===C?' on':''),()=>{C=c.id;drawChans();chanOpen()})))}
 function chanOpen(){const c=chans.find(x=>x.id===C);if(!c)return;const sv=servers.find(x=>x.id===S),ow=(sv&&sv.owner===me.id)||isAdm();if(c.type==='forum')return forumView(c);
   openRoom('ch:'+c.id,(c.type==='announce'?'📢 ':'# ')+c.name,{server:S,chid:c.id,noWrite:c.type==='announce'&&!ow})}
-$('chb').onclick=async()=>{const n=$('chn').value.trim().toLowerCase().replace(/\s+/g,'-');if(!n)return;$('chn').value='';const {data}=await sb.from('channels').insert({server_id:S,name:n,type:$('chty').value}).select().single();if(data){C=data.id}}
+$('chb').onclick=async()=>{const n=$('chn').value.trim().toLowerCase().replace(/\s+/g,'-');if(!n)return;$('chn').value='';const {data}=await sb.from('channels').insert({server_id:S,name:n,...($('chty').value!=='text'?{type:$('chty').value}:{})}).select().single();if(data){C=data.id}}
 $('chn').onkeydown=e=>{if(e.key==='Enter')$('chb').click()};
 
 /* mesajlar */
@@ -175,7 +175,7 @@ async function render(){
     const rx=RX[m.id];if(rx&&rx.length){const g={};rx.forEach(r=>(g[r.emoji]=g[r.emoji]||[]).push(r.user_id));const w=el('div',null,'rxs');Object.keys(g).forEach(k=>w.append(el('button',k+' '+g[k].length,'rb'+(g[k].includes(me.id)?' me':''),()=>toggleRx(m,k))));bd.append(w)}
     e.append(av,bd);log.append(e)});
   if(bot)log.scrollTop=log.scrollHeight}
-async function post(o){if(!cur||!cur.room)return;const {data,error}=await sb.from('messages').insert({room:cur.room,user_id:me.id,reply_to:replyTo?replyTo.id:null,...o}).select().single();
+async function post(o){if(!cur||!cur.room)return;const {data,error}=await sb.from('messages').insert({room:cur.room,user_id:me.id,...(replyTo?{reply_to:replyTo.id}:{}),...o}).select().single();
   if(error){st('Gönderilemedi: '+error.message);return}clearReply();if(!list.find(m=>m.id===data.id)){list.push(data);render()}}
 function send(){const t=$('in').value.trim();if(!t)return;$('in').value='';$('in').style.height='auto';if(cur&&cur.ai)return aiSay(t);post({body:t})}
 $('send').onclick=send;$('in').onkeydown=e=>{if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();send()}};
