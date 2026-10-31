@@ -5,3 +5,5 @@
 5) Arama: DM'de arkadasin ustunde 📞 📹 dugmeleri. Farkli aglar icin public/index.html icindeki ICE listesine TURN sunucusu ekle (ornegin metered.ca ucretsiz plan).
 
 6) Guncelleme: update1.sql dosyasini SQL Editor da bir kez calistir. Admin paneli: F10 (is_admin olmayan kisiye acilmaz).
+
+7) update2.sql (update1.sql den sonra): kanal turleri, konular, roller, kurallar, tepkiler, PRO.
